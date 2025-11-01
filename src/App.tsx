@@ -2,6 +2,8 @@
 import { useEffect, useMemo, useState } from "react";
 import supabase from "./lib/supabaseClient";
 import { Link } from "react-router-dom";
+import AdminPanel from './AdminPanel';
+
 
 type Difficulty = "easy" | "medium" | "hard";
 type Category = { id: string; title: string; image_url: string | null; is_active: boolean; };
