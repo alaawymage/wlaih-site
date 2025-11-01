@@ -1,300 +1,204 @@
+// src/App.tsx
 import { useEffect, useMemo, useState } from "react";
 import supabase from "./lib/supabaseClient";
-import "./index.css";
-import logoUrl from "/logo-wlaih.svg";
+import { Link } from "react-router-dom";
 
-/* =========================
-   Types
-========================= */
 type Difficulty = "easy" | "medium" | "hard";
-
-type Category = {
-  id: string;
-  title: string;
-  slug: string | null;
-  is_active: boolean;
-};
-
+type Category = { id: string; title: string; image_url: string | null; is_active: boolean; };
 type Question = {
-  id: string;
-  category_id: string;
-  text: string;
-  answer: string;
-  difficulty: Difficulty;
-  is_active: boolean;
+  id: string; category_id: string; text: string; answer: string;
+  difficulty: Difficulty; is_active: boolean; options: string[] | null;
 };
+type CategoryWithQuestions = Category & { questions: Question[] };
 
-type CategoryWithQuestions = Category & {
-  questions: Question[];
-};
+const POINTS: Record<Difficulty, number> = { easy: 200, medium: 400, hard: 600 };
 
-/* =========================
-   Helpers
-========================= */
-const difficultyToPoints = (d: Difficulty) =>
-  d === "easy" ? 200 : d === "medium" ? 400 : 600;
-
-/** ترتيب صعوبات موحّد (لترتيب الكروت 200 ثم 400 ثم 600) */
-const byDifficulty = (a: Question, b: Question) => {
-  const map: Record<Difficulty, number> = { easy: 1, medium: 2, hard: 3 };
-  return map[a.difficulty] - map[b.difficulty];
-};
-
-/* =========================
-   App
-========================= */
 export default function App() {
-  const [categories, setCategories] = useState<CategoryWithQuestions[]>([]);
+  const [data, setData] = useState<CategoryWithQuestions[]>([]);
   const [loading, setLoading] = useState(true);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // حالة السؤال المفتوح
   const [selected, setSelected] = useState<Question | null>(null);
   const [showAnswer, setShowAnswer] = useState(false);
+  const [showChoices, setShowChoices] = useState(false);
+  const [usedIds, setUsedIds] = useState<Set<string>>(new Set());
 
-  // نقاط الفرق (محلية مبدئية)
-  const [scoreA, setScoreA] = useState(0);
-  const [scoreB, setScoreB] = useState(0);
+  const load = async () => {
+    setLoading(true);
+    const { data: cats } = await supabase
+      .from("categories")
+      .select("*")
+      .order("title", { ascending: true });
+    const { data: qs } = await supabase
+      .from("questions")
+      .select("*")
+      .eq("is_active", true);
+
+    const allCats = (cats || []) as Category[];
+    const allQs = (qs || []) as Question[];
+    const merged: CategoryWithQuestions[] = allCats.map((c) => ({
+      ...c,
+      questions: allQs.filter((q) => q.category_id === c.id),
+    }));
+    setData(merged);
+    setLoading(false);
+  };
 
   useEffect(() => {
-    const fetchAll = async () => {
-      setLoading(true);
-      setErrorMsg(null);
-      try {
-        // 1) الفئات
-        const { data: cats, error: catsErr } = await supabase
-          .from("categories")
-          .select("*")
-          .eq("is_active", true)
-          .order("title", { ascending: true });
-
-        if (catsErr) throw catsErr;
-
-        // 2) الأسئلة
-        const { data: qs, error: qsErr } = await supabase
-          .from("questions")
-          .select("*")
-          .eq("is_active", true)
-          .order("difficulty", { ascending: true });
-
-        if (qsErr) throw qsErr;
-
-        // 3) ربط الأسئلة مع الفئات
-        const grouped: CategoryWithQuestions[] =
-          (cats || []).map((c) => ({
-            ...c,
-            questions: (qs || [])
-              .filter((q) => q.category_id === c.id)
-              .sort(byDifficulty),
-          })) || [];
-
-        setCategories(grouped);
-      } catch (e: any) {
-        setErrorMsg(e?.message || "خطأ غير متوقع");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchAll();
+    load();
   }, []);
 
-  // عدد الأعمدة (لضبط الشبكة)
-  const columns = useMemo(
-    () => Math.min(Math.max(categories.length, 1), 6),
-    [categories.length]
-  );
+  function pickRandomQuestion(cat: CategoryWithQuestions, diff: Difficulty) {
+    const pool = cat.questions.filter(
+      (q) => q.difficulty === diff && !usedIds.has(q.id)
+    );
+    if (pool.length === 0) return null;
+    const idx = Math.floor(Math.random() * pool.length);
+    return pool[idx];
+  }
 
-  const openQuestion = (q: Question) => {
+  function openByPoints(cat: CategoryWithQuestions, diff: Difficulty) {
+    const q = pickRandomQuestion(cat, diff);
+    if (!q) {
+      alert("لا يوجد سؤال متاح لهذه الدرجة (تم استخدام كل الأسئلة).");
+      return;
+    }
     setSelected(q);
     setShowAnswer(false);
-  };
+    setShowChoices(false);
+    setUsedIds((prev) => new Set(prev).add(q.id));
+  }
 
-  const closeQuestion = () => {
-    setSelected(null);
-    setShowAnswer(false);
-  };
-
-  const awardToA = () => {
-    if (!selected) return;
-    setScoreA((s) => s + difficultyToPoints(selected.difficulty));
-    closeQuestion();
-  };
-
-  const awardToB = () => {
-    if (!selected) return;
-    setScoreB((s) => s + difficultyToPoints(selected.difficulty));
-    closeQuestion();
-  };
+  const shuffledChoices = useMemo(() => {
+    if (!selected) return [];
+    const base = selected.options?.length ? [...selected.options, selected.answer] : [];
+    const unique = Array.from(new Set(base)); // لو الإجابة ضمن الخيارات
+    for (let i = unique.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [unique[i], unique[j]] = [unique[j], unique[i]];
+    }
+    return unique;
+  }, [selected]);
 
   return (
-    <div dir="rtl" className="min-h-screen bg-slate-50 text-slate-900">
-      {/* ===== Header ===== */}
-      <header className="w-full border-b bg-white/75 backdrop-blur sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+    <div dir="rtl" className="min-h-screen bg-slate-50 text-slate-800">
+      {/* الهيدر */}
+      <header className="sticky top-0 z-10 bg-white/80 backdrop-blur border-b">
+        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src={logoUrl} alt="ولـيّه" className="w-9 h-9" />
-            <h1 className="text-2xl font-extrabold tracking-tight">ولـيّه</h1>
+            {/* لوغو بسيط بكلمة وِلِيّه */}
+            <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white grid place-items-center font-extrabold text-lg">
+              و
+            </div>
+            <h1 className="text-xl font-extrabold tracking-wide">وِلِيّه</h1>
           </div>
-
-          <div className="flex items-center gap-2">
-            <ScoreBadge label="الفريق A" score={scoreA} />
-            <ScoreBadge label="الفريق B" score={scoreB} />
-          </div>
+          <nav className="flex items-center gap-4 text-sm">
+            <Link to="/login" className="text-indigo-700 hover:underline">تسجيل دخول</Link>
+            <Link to="/admin" className="text-indigo-700 hover:underline">الإدارة</Link>
+          </nav>
         </div>
       </header>
 
-      {/* ===== Content ===== */}
-      <main className="max-w-6xl mx-auto px-3 sm:px-4 pt-6 pb-16">
-        {loading && (
-          <div className="rounded-xl border bg-white p-6 text-center shadow-sm">
-            جارِ تحميل البيانات…
-          </div>
-        )}
+      {/* الجسم */}
+      <main className="max-w-7xl mx-auto px-4 py-6">
+        {/* تعليمات قصيرة */}
+        <div className="mb-5 text-sm text-slate-600">
+          اضغط 200/400/600 لاختيار سؤال عشوائي من الفئة. السؤال يظهر داخل البوكس فقط.
+          يمكن عرض “الاختيارات” أو إظهار “الإجابة”. النقاط: 200 / 400 / 600.
+        </div>
 
-        {errorMsg && (
-          <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 shadow-sm text-rose-700">
-            حدث خطأ: {errorMsg}
-          </div>
-        )}
-
-        {!loading && !errorMsg && (
-          <>
-            {/* شبكة الفئات */}
-            <div
-              className={`grid gap-4 sm:gap-6`}
-              style={{
-                gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
-              }}
-            >
-              {categories.map((cat) => (
-                <div
-                  key={cat.id}
-                  className="rounded-2xl bg-white shadow-sm border border-slate-200 overflow-hidden"
-                >
-                  <div className="px-4 py-3 border-b bg-slate-50">
-                    <h2 className="font-semibold">{cat.title}</h2>
-                    <div className="text-[11px] text-slate-500">
-                      {cat.questions.length} سؤال متاح
-                    </div>
-                  </div>
-
-                  <div className="p-3 space-y-2">
-                    {cat.questions.length === 0 && (
-                      <div className="text-xs text-slate-500">
-                        لا توجد أسئلة في هذه الفئة.
-                      </div>
-                    )}
-
-                    {/* كروت النقاط (200/400/600) فقط */}
-                    {cat.questions.map((q) => (
-                      <button
-                        key={q.id}
-                        onClick={() => openQuestion(q)}
-                        className="w-full rounded-xl border border-slate-200 bg-white py-3 text-sm font-semibold
-                                   hover:bg-slate-50 transition shadow-sm"
-                      >
-                        {difficultyToPoints(q.difficulty)}
-                      </button>
-                    ))}
-                  </div>
+        {loading ? (
+          <div>جارِ التحميل…</div>
+        ) : (
+          <div className="grid lg:grid-cols-3 md:grid-cols-2 gap-4">
+            {data.map((cat) => (
+              <div key={cat.id} className="rounded-2xl border bg-white shadow-sm">
+                <div className="p-3 flex items-center justify-between border-b">
+                  <div className="font-bold">{cat.title}</div>
+                  {cat.image_url ? (
+                    <img src={cat.image_url} className="w-10 h-10 rounded object-cover" />
+                  ) : null}
                 </div>
-              ))}
-            </div>
-
-            {/* تلميح وسط الصفحة */}
-            <div className="mt-8 rounded-2xl border bg-white p-6 shadow-sm text-center">
-              <p className="text-sm text-slate-600">
-                ابدأ باختيار فئة ثم اضغط على سؤال لإظهاره. 👋
-                <br />
-                المقدم يعتمد النقاط شفهيًا بعد إظهار الإجابة.
-              </p>
-            </div>
-          </>
+                <div className="p-3 grid grid-cols-3 gap-3">
+                  {/* أزرار 200/400/600 فقط */}
+                  <button onClick={() => openByPoints(cat, "easy")}
+                    className="px-3 py-4 rounded-lg bg-slate-50 hover:bg-slate-100 border text-center font-bold">200</button>
+                  <button onClick={() => openByPoints(cat, "medium")}
+                    className="px-3 py-4 rounded-lg bg-slate-50 hover:bg-slate-100 border text-center font-bold">400</button>
+                  <button onClick={() => openByPoints(cat, "hard")}
+                    className="px-3 py-4 rounded-lg bg-slate-50 hover:bg-slate-100 border text-center font-bold">600</button>
+                </div>
+              </div>
+            ))}
+          </div>
         )}
       </main>
 
-      {/* ===== Footer ===== */}
-      <footer className="max-w-6xl mx-auto px-4 pb-10 text-center">
-        <div className="text-xs text-slate-500">
-          © ولـيّه 2025 — جميع الحقوق محفوظة
+      {/* الفوتر */}
+      <footer className="border-t">
+        <div className="max-w-7xl mx-auto px-4 py-4 text-xs text-slate-500 flex items-center justify-between">
+          <div>© {new Date().getFullYear()} — وِلِيّه. جميع الحقوق محفوظة.</div>
+          <div className="text-[11px]">إصدار لعب جماعي شفهي — الأسئلة تُدار من لوحة الإدارة</div>
         </div>
       </footer>
 
-      {/* ===== Modal: السؤال/الإجابة ===== */}
+      {/* المودال */}
       {selected && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-3">
-          <div className="w-full max-w-2xl rounded-2xl bg-white shadow-xl border border-slate-200">
-            <div className="px-5 py-4 border-b flex items-center justify-between">
-              <h3 className="text-base font-bold">
-                سؤال بقيمة {difficultyToPoints(selected.difficulty)} نقطة
-              </h3>
-              <button
-                onClick={closeQuestion}
-                className="text-slate-500 hover:text-slate-700"
-                aria-label="إغلاق"
-              >
-                إغلاق
-              </button>
-            </div>
-
-            <div className="px-5 py-5">
-              <div className="text-lg leading-8">{selected.text}</div>
-
-              {!showAnswer ? (
-                <div className="mt-6">
-                  <button
-                    onClick={() => setShowAnswer(true)}
-                    className="px-4 py-2 rounded-lg bg-indigo-600 text-white font-semibold hover:bg-indigo-700"
-                  >
-                    إظهار الإجابة
-                  </button>
-                </div>
-              ) : (
-                <div className="mt-6 p-4 rounded-lg bg-emerald-50 border border-emerald-200">
-                  <div className="text-sm text-emerald-700 mb-1">
-                    الإجابة الصحيحة:
-                  </div>
-                  <div className="text-xl font-bold">{selected.answer}</div>
-                </div>
-              )}
-            </div>
-
-            <div className="px-5 py-4 border-t flex flex-wrap items-center gap-2">
-              <button
-                onClick={awardToA}
-                className="px-3 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700"
-              >
-                اعتماد النقاط للفريق A
-              </button>
-              <button
-                onClick={awardToB}
-                className="px-3 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700"
-              >
-                اعتماد النقاط للفريق B
-              </button>
-              <div className="ms-auto">
-                <button
-                  onClick={closeQuestion}
-                  className="px-3 py-2 rounded-lg bg-slate-100 text-slate-800 text-sm hover:bg-slate-200"
-                >
-                  إغلاق
-                </button>
+        <div className="fixed inset-0 bg-black/40 grid place-items-center p-4">
+          <div className="max-w-2xl w-full bg-white rounded-2xl shadow-xl p-5">
+            <div className="flex items-center justify-between">
+              <div className="font-bold text-lg">
+                سؤال {POINTS[selected.difficulty]} نقطة
               </div>
+              <button onClick={() => setSelected(null)}
+                      className="text-slate-500 hover:text-slate-800">إغلاق</button>
             </div>
+
+            <div className="mt-4 p-4 border rounded-lg bg-slate-50">
+              <div className="leading-relaxed">{selected.text}</div>
+
+              {/* وسيلة مساعدة: عرض الاختيارات */}
+              {selected.options?.length ? (
+                <button
+                  onClick={() => setShowChoices(true)}
+                  className="mt-3 px-3 py-2 rounded bg-amber-500 text-white text-sm"
+                >
+                  عرض الاختيارات
+                </button>
+              ) : null}
+
+              {showChoices && shuffledChoices.length ? (
+                <div className="mt-4 grid sm:grid-cols-2 gap-2">
+                  {shuffledChoices.map((opt, i) => (
+                    <div key={i} className="border rounded p-3 text-sm bg-white">{opt}</div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+
+            <div className="mt-4 flex items-center gap-3">
+              <button
+                className="px-4 py-2 rounded bg-indigo-600 text-white"
+                onClick={() => setShowAnswer((v) => !v)}
+              >
+                {showAnswer ? "إخفاء الإجابة" : "إظهار الإجابة"}
+              </button>
+              <button
+                className="px-3 py-2 rounded border"
+                onClick={() => { setSelected(null); }}
+              >
+                سؤال جديد
+              </button>
+            </div>
+
+            {showAnswer && (
+              <div className="mt-4 p-3 border rounded bg-emerald-50 text-emerald-900">
+                <span className="font-bold">الإجابة: </span>
+                {selected.answer}
+              </div>
+            )}
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-/* ====== Small UI piece ====== */
-function ScoreBadge({ label, score }: { label: string; score: number }) {
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
-      <div className="text-[10px] text-slate-500">{label}</div>
-      <div className="text-sm font-bold">{score}</div>
     </div>
   );
 }
