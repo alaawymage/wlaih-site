@@ -2,7 +2,24 @@
 import { useEffect, useMemo, useState } from "react";
 import supabase from "./lib/supabaseClient";
 import { Link } from "react-router-dom";
-import AdminPanel from './AdminPanel';
+import AdminPanel from "./admin/AdminPanel";
+import AdminGate from "./admin/AdminGate"; // 👈 جديد
+
+export default function App() {
+  // ... باقي الـ useState
+
+  // 👇 هذا الشرط يفتح لوحة الإدارة فقط داخل Gate (بإيميلك)
+  if (location.pathname === "/admin") {
+    return (
+      <AdminGate>
+        <AdminPanel />
+      </AdminGate>
+    );
+  }
+
+  // ... بقية اللعبة
+}
+
 
 
 type Difficulty = "easy" | "medium" | "hard";
@@ -23,7 +40,6 @@ export default function App() {
   const [showAnswer, setShowAnswer] = useState(false);
   const [showChoices, setShowChoices] = useState(false);
   const [usedIds, setUsedIds] = useState<Set<string>>(new Set());
-if (location.pathname === '/admin') return <AdminPanel />;
 
   const load = async () => {
     setLoading(true);
