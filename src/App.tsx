@@ -1,6 +1,6 @@
 // src/App.tsx
 import { useEffect, useMemo, useState } from "react";
-import supabase from "./lib/supabaseClient";
+import { supabase } from './lib/supabaseClient';
 import { Link } from "react-router-dom";
 import AdminPanel from "./admin/AdminPanel";
 import AdminGate from "./admin/AdminGate"; // 👈 جديد
