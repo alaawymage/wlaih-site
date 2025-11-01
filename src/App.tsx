@@ -23,6 +23,7 @@ export default function App() {
   const [showAnswer, setShowAnswer] = useState(false);
   const [showChoices, setShowChoices] = useState(false);
   const [usedIds, setUsedIds] = useState<Set<string>>(new Set());
+if (location.pathname === '/admin') return <AdminPanel />;
 
   const load = async () => {
     setLoading(true);
