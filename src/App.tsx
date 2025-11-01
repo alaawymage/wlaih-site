@@ -2,26 +2,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from './lib/supabaseClient';
 import { Link } from "react-router-dom";
-import AdminPanel from "./admin/AdminPanel";
-import AdminGate from "./admin/AdminGate"; // 👈 جديد
+import AdminGate from './admin/AdminGate';
+import AdminPanel from './admin/AdminPanel';
 
-export default function App() {
-  // ... باقي الـ useState
-
-  // 👇 هذا الشرط يفتح لوحة الإدارة فقط داخل Gate (بإيميلك)
-  if (location.pathname === "/admin") {
-    return (
-      <AdminGate>
-        <AdminPanel />
-      </AdminGate>
-    );
-  }
-
-  // ... بقية اللعبة
+if (location.pathname === '/admin') {
+  return (
+    <AdminGate>
+      <AdminPanel />
+    </AdminGate>
+  );
 }
 
-
-
+export default function App() {
 type Difficulty = "easy" | "medium" | "hard";
 type Category = { id: string; title: string; image_url: string | null; is_active: boolean; };
 type Question = {
