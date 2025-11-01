@@ -1,6 +1,8 @@
 // src/pages/Login.tsx
 import { useState } from "react";
 import supabase from "../lib/supabaseClient";
+import React from "react";
+
 
 export default function Login() {
   const [email, setEmail] = useState("");

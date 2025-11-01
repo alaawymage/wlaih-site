@@ -1,8 +1,9 @@
 // src/main.tsx
 import React from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter } from "react-router-dom"; // ✅
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import "./index.css";
+
 import App from "./App";
 import Login from "./pages/Login";
 import AdminPage from "./pages/Admin";

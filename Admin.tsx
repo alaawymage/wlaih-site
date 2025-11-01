@@ -22,13 +22,17 @@ type Question = {
   options: string[] | null;
 };
 
+import React from "react";
+
 export default function AdminPage() {
   return (
-    <AdminGate>
-      <Panel />
-    </AdminGate>
+    <div className="p-6">
+      <h1 className="text-2xl font-bold">لوحة التحكم</h1>
+      <p className="mt-2 text-slate-600">صفحة أدمن مؤقتة للتجربة.</p>
+    </div>
   );
 }
+
 
 function Panel() {
   const [cats, setCats] = useState<Category[]>([]);
