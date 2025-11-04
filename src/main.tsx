@@ -5,10 +5,10 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import "./index.css";
 
 import App from "./App";
-import Login from "@/pages/Login";
-import AdminPage from "@/pages/Admin";
+import Login from "./Login";
+import AdminPage from "./Admin";
 
-createRoot(document.getElementById("root")!).render(
+createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <BrowserRouter>
       <Routes>
