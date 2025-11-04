@@ -1,4 +1,4 @@
-
+﻿
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 /**
@@ -401,7 +401,7 @@ export default function App() {
           setOverrideAnswer={setOverrideAnswer}
           overridePoints={overridePoints}
           setOverridePoints={setOverridePoints}
-          onOverrideAccept={(teamIdx) => {
+          onOverrideAccept={(teamIdx: number) => {
             if (!selected) return;
             const pts = overridePoints ? Number(overridePoints) : selected.q.points;
             awardPoints(teamIdx, pts);

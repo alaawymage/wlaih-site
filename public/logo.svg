@@ -1,0 +1,6 @@
+<!-- public/logo.svg -->
+<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none">
+  <circle cx="12" cy="12" r="9" stroke="#6b7cff" stroke-width="2"/>
+  <circle cx="12" cy="12" r="3" fill="#6b7cff"/>
+  <path d="M20 4L12 12" stroke="#6b7cff" stroke-width="2" stroke-linecap="round"/>
+</svg>
